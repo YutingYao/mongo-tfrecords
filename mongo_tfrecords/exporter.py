@@ -75,7 +75,7 @@ def serialize_example(features_values: dict, features_types: dict) -> tf.train.E
     return tf.train.Example(features=tf.train.Features(feature=features_map))
 
 
-def generate_features_types_map(data: Iterable):
+def generate_features_types_map(data: Iterable, callback: Callable = None):
     features_map = {}
 
     def _get_type(val):
@@ -87,6 +87,11 @@ def generate_features_types_map(data: Iterable):
         return feature_type
 
     for item in data:
+        if callback:
+            _item = callback(item)
+            if _item is not None:
+                item = _item
+
         for key, value in item.items():
             exists_feature_type = features_map.get(key)
             item_feature_type = _get_type(value)
@@ -115,6 +120,7 @@ def export(
     database: Union[str, Database] = None,
     features: Union[list, dict] = None,
     features_gen_batch: int = 100,
+    callback: Callable = None,
     skip: int = None,
     limit: int = None,
     verbose=False,
@@ -141,7 +147,7 @@ def export(
                 projection[f] = 1
 
         pre_batch = collection.find({}, projection).limit(features_gen_batch)
-        features = generate_features_types_map(pre_batch)
+        features = generate_features_types_map(pre_batch, callback)
 
     cursor = collection.find()
     if skip:
@@ -164,6 +170,11 @@ def export(
                     item = cursor.next()
                 except StopIteration:
                     break
+
+                if callback:
+                    _item = callback(item)
+                    if _item is not None:
+                        item = _item
 
                 example = serialize_example(item, features)
                 if not example:
